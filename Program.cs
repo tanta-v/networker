@@ -7,4 +7,12 @@
             Console.WriteLine("Hello, World!");
         }
     }
+    namespace Server
+    {
+
+    }
+    namespace Client
+    {
+
+    }
 }
