@@ -1,1 +1,1 @@
-What should be a relatively simple C# OOP networking agent/server.
+What should be a relatively simple C# OOP networking agent/server. Uses instances of server() and client() for interaction with packets.
