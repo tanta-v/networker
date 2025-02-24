@@ -8,6 +8,7 @@ using System.Security.Cryptography.X509Certificates;
 using networker.Server.Packets;
 using System.Reflection;
 using System.Linq;
+using networker.Client.Packets;
 namespace networker
 {
     internal class Program
@@ -38,7 +39,10 @@ namespace networker
             public int packetID { get; internal set; }
             /// <value> The UTC time that the packet was sent, defined as a 'long'. keeps track of ping. Replicated.</value>
             public long timeSent { get; internal set; }
-            public 
+            /// <value>
+            /// If the packet is sent by the client or not
+            /// </value>
+            public bool isClient { get; }
         }
         /// <summary>
         /// PacketMaster is the packet handler. This is the only thing that should be used by external functions.
@@ -55,19 +59,14 @@ namespace networker
             {
                 var asm = Assembly.GetExecutingAssembly();  /// non-explicit type declarations suck
                 var types = asm.GetTypes();
-                var serverPackets = types
-                    .Where(t => typeof(IServerPacket).IsAssignableFrom(t) 
+                var packets = types
+                    .Where(t => typeof(IPacket).IsAssignableFrom(t) 
                     && !t.IsAbstract
-                    && t != typeof(IServerPacket)
-                    ).ToList();
-                var clientPackets = types
-                    .Where(t => typeof(IServerPacket).IsAssignableFrom(t)
-                    && !t.IsAbstract
-                    && t != typeof(IServerPacket)
+                    && t != typeof(IServerPacket) && t != typeof(IClientPacket)
                     ).ToList();
                 _packetDict = new Dictionary<Tuple<bool, int>, IPacket>(); // tuple<isclient, id>
                 _cPacketId = 0;
-                foreach (var t in serverPackets )
+                foreach (var t in packets)
                 {
                     Console.WriteLine(t);
                     IServerPacket pak = (IServerPacket) Activator.CreateInstance(t);
@@ -86,6 +85,7 @@ namespace networker
             public virtual int packetID { get; set; }
             public virtual long timeSent { get; set; }
             public virtual int type { get { return -1; } }
+            public bool isClient { get { return false; } }
         }
         namespace Packets
         {
@@ -121,6 +121,7 @@ namespace networker
                 public virtual int packetID { get; set; }
                 public virtual long timeSent { get; set; }
                 public virtual int type { get { return -1; } }
+                public bool isClient { get { return true; } }
             }
         }
         public class Client
