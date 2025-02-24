@@ -34,7 +34,7 @@ namespace networker
         }
         public class PacketMaster
         {
-            public 
+            
         }
 
     }
