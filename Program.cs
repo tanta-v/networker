@@ -9,6 +9,7 @@ using networker.Server.Packets;
 using System.Reflection;
 using System.Linq;
 using networker.Client.Packets;
+using Newtonsoft.Json;
 namespace networker
 {
     internal class Program
@@ -16,7 +17,7 @@ namespace networker
         static void Main(string[] args)
         {
             Console.WriteLine($"{Utility.Utility.timeNowAsString} || {Utility.Utility.UTCTimeAsLong}: Hello, World!");
-            PacketMaster master = new PacketMaster();
+            PacketMaster master = new PacketMaster(false);
         }
     }
     namespace Utility
@@ -51,28 +52,48 @@ namespace networker
         {
             private Dictionary<Tuple<bool, int>, IPacket> _packetDict;
             public static int _cPacketId { get; private set; }
-            public PacketMaster() 
+            public static bool isRunning { get; private set; }
+            public static bool isClient { get; private set; }
+            public PacketMaster(bool _isClient) 
             {
+                isClient = _isClient;
                 init();
+                initSerializer();
             }
             private void init()
             {
                 var asm = Assembly.GetExecutingAssembly();  /// non-explicit type declarations suck
                 var types = asm.GetTypes();
-                var packets = types
-                    .Where(t => typeof(IPacket).IsAssignableFrom(t) 
+                var serverPackets = types
+                    .Where(t => typeof(IServerPacket).IsAssignableFrom(t) 
                     && !t.IsAbstract
-                    && t != typeof(IServerPacket) && t != typeof(IClientPacket)
+                    && t != typeof(IServerPacket)
+                    ).ToList();
+                var clientPackets = types
+                    .Where(t => typeof(IClientPacket).IsAssignableFrom(t)
+                    && !t.IsAbstract
+                    && t != typeof(IClientPacket)
                     ).ToList();
                 _packetDict = new Dictionary<Tuple<bool, int>, IPacket>(); // tuple<isclient, id>
                 _cPacketId = 0;
-                foreach (var t in packets)
+                foreach (var t in serverPackets)
                 {
                     Console.WriteLine(t);
                     IServerPacket pak = (IServerPacket) Activator.CreateInstance(t);
                     _packetDict.Add(new Tuple<bool, int>(false, pak.packetID), pak);
-                    Console.WriteLine(pak.packetID);
+                    Console.WriteLine(pak);
                 }
+                foreach (var t in clientPackets)
+                {
+                    Console.WriteLine(t);
+                    IClientPacket pak = (IClientPacket)Activator.CreateInstance(t);
+                    _packetDict.Add(new Tuple<bool, int>(true, pak.packetID), pak);
+                    Console.WriteLine(pak);
+                }
+            }
+            private void initSerializer()
+            {
+
             }
         }
 
@@ -86,6 +107,10 @@ namespace networker
             public virtual long timeSent { get; set; }
             public virtual int type { get { return -1; } }
             public bool isClient { get { return false; } }
+            public override string ToString()
+            {
+                return JsonConvert.SerializeObject(this, Formatting.Indented);
+            }
         }
         namespace Packets
         {
@@ -113,15 +138,34 @@ namespace networker
     }
     namespace Client
     {
+        public class IClientPacket : IPacket // a packet which the server sends
+        {
+            public virtual long timeRecieved { get; internal set; } // the UTC time that the packet was recieved, defined as a 'long'. keeps track of ping. Server sided.
+            public virtual int packetID { get; set; }
+            public virtual long timeSent { get; set; }
+            public virtual int type { get { return -1; } }
+            public bool isClient { get { return true; } }
+            public override string ToString()
+            {
+                return JsonConvert.SerializeObject(this, Formatting.Indented);
+            }
+        }
         namespace Packets
         {
-            public class IClientPacket : IPacket // a packet which the server sends
+            public class ClientRegisterPacket_00: IClientPacket
             {
-                public virtual long timeRecieved { get; internal set; } // the UTC time that the packet was recieved, defined as a 'long'. keeps track of ping. Server sided.
-                public virtual int packetID { get; set; }
-                public virtual long timeSent { get; set; }
-                public virtual int type { get { return -1; } }
-                public bool isClient { get { return true; } }
+                public override long timeRecieved { get; internal set; }
+                public override int packetID { get; set; }
+
+                public override long timeSent { get; set; }
+
+                public override int type { get { return 0; } }
+                public ClientRegisterPacket_00() 
+                { 
+                    timeSent = Utility.Utility.UTCTimeAsLong; 
+                    packetID = PacketMaster._cPacketId;
+                }
+
             }
         }
         public class Client
