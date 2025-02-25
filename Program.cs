@@ -146,10 +146,9 @@ namespace networker
                 Buffer.BlockCopy(BitConverter.GetBytes(_pak.packetID), 0, toTrsmt, 6, 4);
                 Buffer.BlockCopy(Encoding.UTF8.GetBytes("||"), 0, toTrsmt, 10, 2);
                 Buffer.BlockCopy(Encoding.UTF8.GetBytes(__), 0, toTrsmt, 12, msglength - 12);
-                foreach (byte f in toTrsmt)
-                {
-                    Console.Write(f);
-                }
+                Utility.Utility.log($"\nRe-encoded: {Encoding.UTF8.GetString(toTrsmt)}");
+                Utility.Utility.log(BitConverter.ToInt32(toTrsmt.Take(4).ToArray()).ToString());
+                Utility.Utility.log(BitConverter.ToInt32(toTrsmt.Skip(6).Take(4).ToArray()).ToString());
                 return toTrsmt;
             }
         }
