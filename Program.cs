@@ -12,6 +12,8 @@ using networker.Client.Packets;
 using Newtonsoft.Json;
 using networker.Packetry.Exceptions;
 using System.Text;
+using System.Net.Sockets;
+using System.Net;
 namespace networker
 {
     internal class Program
@@ -84,7 +86,7 @@ namespace networker
         public class PacketMaster
         {
             private Dictionary<Tuple<bool, int>, IPacket>? _packetDict;
-            public static int _cPacketId { get; private set; }
+            public static int _cPacketId { get; set; }
             public static bool isRunning { get; private set; }
             public static bool isClient { get; private set; }
             public PacketMaster(bool _isClient)
@@ -149,6 +151,7 @@ namespace networker
                 Utility.Utility.log($"\nRe-encoded: {Encoding.UTF8.GetString(toTrsmt)}");
                 Utility.Utility.log(BitConverter.ToInt32(toTrsmt.Take(4).ToArray()).ToString());
                 Utility.Utility.log(BitConverter.ToInt32(toTrsmt.Skip(6).Take(4).ToArray()).ToString());
+                
                 return toTrsmt;
             }
         }
@@ -167,6 +170,11 @@ namespace networker
             {
                 return JsonConvert.SerializeObject(this, Formatting.Indented);
             }
+            public void __init()
+            {
+                packetID = PacketMaster._cPacketId;
+                PacketMaster._cPacketId++;
+            }
         }
         namespace Packets
         {
@@ -180,14 +188,32 @@ namespace networker
                 public ServerRegisterPacket_00()
                 {
                     timeSent = Utility.Utility.UTCTimeAsLong;
-                    packetID = PacketMaster._cPacketId;
+
+                    __init(); // required for packetID
                 }
+            }
+        }
+        public class ServerClient
+        {
+            public ServerClient()
+            {
+
             }
         }
         public class Server
         {
-            public Server()
+            private int _port;
+            private Socket _socket;
+            public Server(int port = 443)
             {
+                _port = port;
+                __init();
+            }
+
+            private void __init()
+            {
+                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                _socket.Bind(new IPEndPoint(IPAddress.Any, _port));
 
             }
         }
@@ -205,6 +231,11 @@ namespace networker
             {
                 return JsonConvert.SerializeObject(this, Formatting.Indented);
             }
+            public void __init()
+            {
+                packetID = PacketMaster._cPacketId;
+                PacketMaster._cPacketId++;
+            }
         }
         namespace Packets
         {
@@ -218,8 +249,9 @@ namespace networker
                 public override int type { get { return 0; } }
                 public ClientRegisterPacket_00() 
                 { 
-                    timeSent = Utility.Utility.UTCTimeAsLong; 
-                    packetID = PacketMaster._cPacketId;
+                    timeSent = Utility.Utility.UTCTimeAsLong;
+
+                    __init(); // required for packetID
                 }
 
             }
