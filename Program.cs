@@ -15,6 +15,7 @@ using System.Text;
 using System.Net.Sockets;
 using System.Net;
 using System.Runtime.ConstrainedExecution;
+using System.Data.SqlTypes;
 namespace networker
 {
     internal class Program
@@ -42,6 +43,26 @@ namespace networker
         {
 
             [Serializable]
+            public class FailedtoReadSCRStrmException : Exception // failed to read server-client read stream
+            {
+                public FailedtoReadSCRStrmException() { }
+                public FailedtoReadSCRStrmException(string message) : base(message) { }
+                public FailedtoReadSCRStrmException(string message, Exception inner) : base(message, inner) { }
+                protected FailedtoReadSCRStrmException(
+                  System.Runtime.Serialization.SerializationInfo info,
+                  System.Runtime.Serialization.StreamingContext context) { }
+            }
+            [Serializable]
+            public class FailedToUnformatPacketException : Exception
+            {
+                public FailedToUnformatPacketException() { }
+                public FailedToUnformatPacketException(string message) : base(message) { }
+                public FailedToUnformatPacketException(string message, Exception inner) : base(message, inner) { }
+                protected FailedToUnformatPacketException(
+                  System.Runtime.Serialization.SerializationInfo info,
+                  System.Runtime.Serialization.StreamingContext context) { }
+            }
+            [Serializable]
             public class IncorrectTransmissionSideException : Exception
             {
                 public IncorrectTransmissionSideException() { }
@@ -49,7 +70,7 @@ namespace networker
                 public IncorrectTransmissionSideException(string message, Exception inner) : base(message, inner) { }
                 protected IncorrectTransmissionSideException(
                   System.Runtime.Serialization.SerializationInfo info,
-                  System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
+                  System.Runtime.Serialization.StreamingContext context) { }
             }
 
             [Serializable]
@@ -60,7 +81,7 @@ namespace networker
                 public InvalidPacketIDException(string message, Exception inner) : base(message, inner) { }
                 protected InvalidPacketIDException(
                   System.Runtime.Serialization.SerializationInfo info,
-                  System.Runtime.Serialization.StreamingContext context) : base(info, context) { }
+                  System.Runtime.Serialization.StreamingContext context) { }
             }
         }
         public interface IPacket
@@ -135,7 +156,7 @@ namespace networker
                     throw new InvalidPacketIDException();
                 }
                 string __ = _pak.ToString();
-                int msglength = __.Length + 8; // data length + 4 + 2 + 4 + 2 - 4 ( packet length will have already been processed)
+                int msglength = __.Length + 8; // data length + 2 + 4 + 2  (packet length will have already been processed)
                 Console.WriteLine(msglength);
                 byte[] _msglength = BitConverter.GetBytes(msglength);
                 
@@ -150,6 +171,23 @@ namespace networker
                 log(BitConverter.ToInt32(toTrsmt.Take(4).ToArray()).ToString());
                 log(BitConverter.ToInt32(toTrsmt.Skip(6).Take(4).ToArray()).ToString());
                 return toTrsmt;
+            }
+            public IPacket unformatPacketFromTransmission(byte[] rec)
+            {
+                try
+                {
+                    // get packet class(?)
+                    IPacket _pc;
+                    _packetDict.TryGetValue(new Tuple<bool, int>(isClient, BitConverter.ToInt32((byte[])rec.Skip(2).Take(4))), out _pc);
+                    rec = (byte[])rec.Skip(8);
+                    var c = JsonConvert.DeserializeAnonymousType(Encoding.UTF8.GetString(rec), _pc.GetType());
+                    return (IPacket) c;
+                }
+                catch (Exception e)
+                {
+                    throw new FailedToUnformatPacketException(e.ToString());
+                }
+                throw new FailedToUnformatPacketException();
             }
         }
 
@@ -220,7 +258,17 @@ namespace networker
             }
             private void recieveThreadFunc()
             {
-
+                while (Server.alive && __socket.Connected)
+                {
+                    byte[] __r1 = new byte[4]; /// length
+                    if (__socket.Receive(__r1) == 0) { throw new FailedtoReadSCRStrmException("Client disconnected during packet length reading process."); }
+                    int paclength = BitConverter.ToInt32(__r1);
+                    if (paclength <= 8) { throw new FailedtoReadSCRStrmException("Invalid packet length... "); }
+                    log($"Packet length of {paclength} recieved. trying the rest of the packet...");
+                    byte[] unf = new byte[paclength];
+                    if (__socket.Receive(unf) == 0) { throw new FailedtoReadSCRStrmException("Client disconnected during packet reading process."); }
+                    packetRecieved((IClientPacket)packetMaster.unformatPacketFromTransmission(unf));
+                }
             }
             
             private void sendThreadFunc()
@@ -236,7 +284,8 @@ namespace networker
                 }
             }
             public void addToSendQueue(IServerPacket toQ) => __sendPacketQueue.Append(toQ);
-            public delegate void packetRecievedDel();
+            public delegate void packetRecievedDel(IClientPacket recievedPacket);
+            public event packetRecievedDel packetRecieved;
         }
         public class Server
         {
