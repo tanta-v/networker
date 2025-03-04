@@ -1,5 +1,5 @@
 ﻿using networker;
-using networker.Utility;
+using static networker.Utility;
 using networker.Packetry;
 using networker.Client;
 using networker.Server;
@@ -14,28 +14,26 @@ using networker.Packetry.Exceptions;
 using System.Text;
 using System.Net.Sockets;
 using System.Net;
+using System.Runtime.ConstrainedExecution;
 namespace networker
 {
     internal class Program
     {
         static void Main(string[] args)
         {
-            Console.WriteLine($"{Utility.Utility.timeNowAsString} || {Utility.Utility.UTCTimeAsLong}: Hello, World!");
+            log($"Hello, World!");
             PacketMaster master = new PacketMaster(false);
             //Utility.Utility.log();
             master.formatPacketForTransmission(new ServerRegisterPacket_00());
         }
     }
-    namespace Utility
+    public static class Utility
     {
-        public static class Utility
+        public static long UTCTimeAsLong { get { return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); } }
+        public static string timeNowAsString { get { return DateTime.Now.ToString(); } }
+        public static void log(string text)
         {
-            public static long UTCTimeAsLong { get { return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); } }
-            public static string timeNowAsString { get { return DateTime.Now.ToString(); } }
-            public static void log(string text)
-            {
-                Console.WriteLine($"{timeNowAsString}: {text}");
-            }
+            Console.WriteLine($"{timeNowAsString}: {text}");
         }
     }
     namespace Packetry
@@ -128,16 +126,16 @@ namespace networker
             public byte[] formatPacketForTransmission(IPacket _pak)
             {
                 if (_pak.isClient != isClient) {
-                    Utility.Utility.log("Packet master tried to format a packet with incorrect client-server relation. Packet: " + _pak);
+                    log("Packet master tried to format a packet with incorrect client-server relation. Packet: " + _pak);
                     throw new IncorrectTransmissionSideException(); 
                 }
                 if (_pak.packetID == -1)
                 {
-                    Utility.Utility.log("Packet master tried to format a packet without an ID. Packet: " + _pak);
+                    log("Packet master tried to format a packet without an ID. Packet: " + _pak);
                     throw new InvalidPacketIDException();
                 }
                 string __ = _pak.ToString();
-                int msglength = __.Length + 12; // data length + 4 + 2 + 4 + 2
+                int msglength = __.Length + 8; // data length + 4 + 2 + 4 + 2 - 4 ( packet length will have already been processed)
                 Console.WriteLine(msglength);
                 byte[] _msglength = BitConverter.GetBytes(msglength);
                 
@@ -148,10 +146,9 @@ namespace networker
                 Buffer.BlockCopy(BitConverter.GetBytes(_pak.packetID), 0, toTrsmt, 6, 4);
                 Buffer.BlockCopy(Encoding.UTF8.GetBytes("||"), 0, toTrsmt, 10, 2);
                 Buffer.BlockCopy(Encoding.UTF8.GetBytes(__), 0, toTrsmt, 12, msglength - 12);
-                Utility.Utility.log($"\nRe-encoded: {Encoding.UTF8.GetString(toTrsmt)}");
-                Utility.Utility.log(BitConverter.ToInt32(toTrsmt.Take(4).ToArray()).ToString());
-                Utility.Utility.log(BitConverter.ToInt32(toTrsmt.Skip(6).Take(4).ToArray()).ToString());
-                
+                log($"\nRe-encoded: {Encoding.UTF8.GetString(toTrsmt)}");
+                log(BitConverter.ToInt32(toTrsmt.Take(4).ToArray()).ToString());
+                log(BitConverter.ToInt32(toTrsmt.Skip(6).Take(4).ToArray()).ToString());
                 return toTrsmt;
             }
         }
@@ -187,26 +184,74 @@ namespace networker
                 
                 public ServerRegisterPacket_00()
                 {
-                    timeSent = Utility.Utility.UTCTimeAsLong;
+                    timeSent = UTCTimeAsLong;
 
                     __init(); // required for packetID
                 }
             }
         }
+        /// <summary>
+        /// The server-sided representation of the client. When a client connects to the server, a new instance of this is created which handles the sending and recieving of packets from the client.
+        /// </summary>
         public class ServerClient
         {
-            public ServerClient()
+            public int ClientID;
+            public IPAddress clientIP;
+            private PacketMaster packetMaster;
+            private Socket __socket;
+            private Thread recieveThread;
+            private Thread sendThread;
+            private Queue<IServerPacket> __sendPacketQueue;
+
+            public ServerClient(Socket _socket, PacketMaster _packetMaster)
+            {
+                __socket = _socket;
+                packetMaster = _packetMaster;
+                ClientID = Server.cClientID;
+                Server.cClientID++;
+#pragma warning disable CS8602 // Dereference of a possibly null reference. so annoying
+                clientIP = (__socket.RemoteEndPoint
+                            as IPEndPoint).Address;
+#pragma warning restore CS8602 // Dereference of a possibly null reference.
+                __sendPacketQueue = new Queue<IServerPacket>();
+                recieveThread = new Thread(recieveThreadFunc); recieveThread.Start();
+                sendThread = new Thread(sendThreadFunc); sendThread.Start();
+
+            }
+            private void recieveThreadFunc()
             {
 
             }
+            
+            private void sendThreadFunc()
+            {
+                while (Server.alive && __socket.Connected)
+                {
+                    if (__sendPacketQueue.Count > 0)
+                    {
+                        IServerPacket toSend = __sendPacketQueue.Dequeue();
+                        __socket.Send(packetMaster.formatPacketForTransmission(toSend));
+                        log(toSend.ToString());
+                    }
+                }
+            }
+            public void addToSendQueue(IServerPacket toQ) => __sendPacketQueue.Append(toQ);
+            public delegate void packetRecievedDel();
         }
         public class Server
         {
+            public static int cClientID;
+            public static bool alive;
+            private PacketMaster packetMaster;
             private int _port;
             private Socket _socket;
+            private Thread _listeningForConnectionThread;
+            
             public Server(int port = 443)
             {
                 _port = port;
+                cClientID = 0;
+                packetMaster = new PacketMaster(false);
                 __init();
             }
 
@@ -214,13 +259,31 @@ namespace networker
             {
                 _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 _socket.Bind(new IPEndPoint(IPAddress.Any, _port));
+                _socket.Listen(22);
+                alive = true;
+                log($"Server opened on port {_port}...");
+                _listeningForConnectionThread = new Thread(__listenForConnections); _listeningForConnectionThread.Start();
 
+            }
+            private void __listenForConnections()
+            {
+                while (alive)
+                {
+                    try
+                    {
+                        
+                    }
+                    catch (Exception exc)
+                    {
+
+                    }
+                }
             }
         }
     }
     namespace Client
     {
-        public class IClientPacket : IPacket // a packet which the server sends
+        public class IClientPacket : IPacket // a packet which the client sends
         {
             public virtual long timeRecieved { get; internal set; } // the UTC time that the packet was recieved, defined as a 'long'. keeps track of ping. Server sided.
             public virtual int packetID { get; set; }
@@ -249,7 +312,7 @@ namespace networker
                 public override int type { get { return 0; } }
                 public ClientRegisterPacket_00() 
                 { 
-                    timeSent = Utility.Utility.UTCTimeAsLong;
+                    timeSent = UTCTimeAsLong;
 
                     __init(); // required for packetID
                 }
