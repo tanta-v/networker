@@ -31,6 +31,19 @@ csharp_style_prefer_unbound_generic_type_in_nameof = true:suggestion
 csharp_style_prefer_utf8_string_literals = true:suggestion
 csharp_style_inlined_variable_declaration = true:suggestion
 
+# CS8602: Dereference of a possibly null reference.
+dotnet_diagnostic.CS8602.severity = none
+
+# CS8603: Possible null reference return.
+dotnet_diagnostic.CS8603.severity = none
+
+# CS8618: Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+dotnet_diagnostic.CS8618.severity = silent
+csharp_space_around_binary_operators = before_and_after
+
+# CS8601: Possible null reference assignment.
+dotnet_diagnostic.CS8601.severity = silent
+
 [*.{cs,vb}]
 #### Naming styles ####
 

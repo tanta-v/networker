@@ -1,10 +1,10 @@
 ﻿using static networker.Utility;
-using networker.Client;
+using networker._Client;
 using System.Reflection;
 using Newtonsoft.Json;
 using networker.Packetry.Exceptions;
 using System.Text;
-using networker.Server;
+using networker._Server;
 namespace networker
 {
     namespace Packetry
@@ -17,7 +17,7 @@ namespace networker
             private Dictionary<Tuple<bool, int>, IPacket>? _packetDict;
             public static bool isRunning { get; private set; }
             public static bool isClient { get; private set; }
-            public int cPKTID;
+            public static int cPKTID;
             public PacketMaster(bool _isClient)
             {
                 isClient = _isClient;
@@ -56,15 +56,10 @@ namespace networker
             }
             public byte[] formatPacketForTransmission(IPacket _pak)
             {
-                if (_pak.isClient != isClient) {
-                    log("Packet master tried to format a packet with incorrect client-server relation. Packet: " + _pak);
-                    throw new IncorrectTransmissionSideException(); 
-                }
+                if (_pak.isClient != isClient)
+                    throw new FormatFailure("Packet master tried to format a packet with incorrect client-server relation. Packet: " + _pak);
                 if (_pak.packetType == -1)
-                {
-                    log("Packet master tried to format a packet without an ID. Packet: " + _pak);
-                    throw new InvalidPacketIDException();
-                }
+                    throw new FormatFailure("Packet master tried to format a packet without an ID. Packet: " + _pak);
                 string __ = _pak.ToString();
                 if (__ != null)
                 {
@@ -79,12 +74,10 @@ namespace networker
                     Buffer.BlockCopy(BitConverter.GetBytes(_pak.packetType), 0, toTrsmt, 6, 4);
                     Buffer.BlockCopy(Encoding.UTF8.GetBytes("||"), 0, toTrsmt, 10, 2);
                     Buffer.BlockCopy(Encoding.UTF8.GetBytes(__), 0, toTrsmt, 12, msglength - 12);
-                    log($"\nRe-encoded: {Encoding.UTF8.GetString(toTrsmt)}");
-                    log(BitConverter.ToInt32(toTrsmt.Take(4).ToArray()).ToString());
-                    log(BitConverter.ToInt32(toTrsmt.Skip(6).Take(4).ToArray()).ToString());
+                    
                     return toTrsmt;
                 }
-                throw new FailedToFormatPacketException();
+                throw new FormatFailure();
             }
             public IPacket unformatPacketFromTransmission(byte[] rec)
             {
@@ -94,13 +87,15 @@ namespace networker
                     IPacket _pc;
                     _packetDict.TryGetValue(new Tuple<bool, int>(isClient, BitConverter.ToInt32((byte[])rec.Skip(2).Take(4))), out _pc);
                     rec = (byte[])rec.Skip(8);
-                    return (IPacket)JsonConvert.DeserializeAnonymousType(Encoding.UTF8.GetString(rec), _pc.GetType());
+                    IPacket pkt = (IPacket)JsonConvert.DeserializeAnonymousType(Encoding.UTF8.GetString(rec), _pc.GetType());
+                    pkt.timeRecieved = UTCTimeAsLong;
+                    return pkt;
                 }
                 catch (Exception e)
                 {
-                    throw new FailedToUnformatPacketException(e.ToString());
+                    throw new UnformatFailure(e.ToString());
                 }
-                throw new FailedToUnformatPacketException();
+                throw new UnformatFailure();
             }
         }
 
