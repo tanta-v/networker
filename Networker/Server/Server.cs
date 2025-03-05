@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using System.Net.Sockets;
 using System.Net;
 using static networker.Utility;
+using networker.Client.Packets;
 
 namespace networker
 {
@@ -13,7 +14,8 @@ namespace networker
         public class IServerPacket : IPacket // a packet which the server sends
         {
             public virtual long timeRecieved { get; internal set; } // the UTC time that the packet was recieved, defined as a 'long'. keeps track of ping. Server sided.
-            public virtual int packetID { get; set; }
+            public virtual int packetType { get { return -1; } }
+            public virtual int packetID { get { return -1; } }
             public virtual long timeSent { get; set; }
             public virtual int type { get { return -1; } }
             public bool isClient { get { return false; } }
@@ -23,20 +25,14 @@ namespace networker
             }
             public void __init()
             {
-                packetID = PacketMaster._cPacketId;
-                PacketMaster._cPacketId++;
             }
         }
         namespace Packets
         {
-            public class ServerRegisterPacket_00 : IServerPacket
+            public class ServerClientRegisterAck_1000 : IServerPacket 
             {
-                public override long timeRecieved { get; internal set; }
-                public override int packetID { get; set; }
-                public override long timeSent { get; set; }
-                public override int type { get { return 0; } }
-
-                public ServerRegisterPacket_00()
+                public override int packetType { get { return 1000; } }
+                public ServerClientRegisterAck_1000()
                 {
                     timeSent = UTCTimeAsLong;
 
@@ -73,9 +69,14 @@ namespace networker
 
                 packetRecieved += handlePacket;
             }
-            private void handlePacket(IClientPacket pkt)
+            private void handlePacket(IClientPacket _pkt)
             {
-
+                switch (_pkt)
+                {
+                    case ClientRegisterPacket_1000 pkt:
+                        
+                        break;
+                }
             }
             private void recieveThreadFunc()
             {

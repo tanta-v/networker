@@ -22,7 +22,7 @@ namespace networker
             log($"Hello, World!");
             PacketMaster master = new PacketMaster(false);
             //Utility.Utility.log();
-            master.formatPacketForTransmission(new ServerRegisterPacket_00());
+            master.formatPacketForTransmission(new ServerClientRegisterAck_00());
         }
     }
     public static class Utility

@@ -15,9 +15,9 @@ namespace networker
         public class PacketMaster
         {
             private Dictionary<Tuple<bool, int>, IPacket>? _packetDict;
-            public static int _cPacketId { get; set; }
             public static bool isRunning { get; private set; }
             public static bool isClient { get; private set; }
+            public int cPKTID;
             public PacketMaster(bool _isClient)
             {
                 isClient = _isClient;
@@ -25,6 +25,7 @@ namespace networker
             }
             private void init()
             {
+                cPKTID = 0;
                 var asm = Assembly.GetExecutingAssembly();  /// non-explicit type declarations suck
                 var types = asm.GetTypes();
                 var serverPackets = types
@@ -38,19 +39,18 @@ namespace networker
                     && t != typeof(IClientPacket)
                     ).ToList();
                 _packetDict = new Dictionary<Tuple<bool, int>, IPacket>(); // tuple<isclient, id>
-                _cPacketId = 0;
                 foreach (var t in serverPackets)
                 {
                     Console.WriteLine(t);
                     IServerPacket pak = (IServerPacket)Activator.CreateInstance(t);
-                    _packetDict.Add(new Tuple<bool, int>(false, pak.packetID), pak);
+                    _packetDict.Add(new Tuple<bool, int>(false, pak.packetType), pak);
                     Console.WriteLine(pak);
                 }
                 foreach (var t in clientPackets)
                 {
                     Console.WriteLine(t);
                     IClientPacket pak = (IClientPacket)Activator.CreateInstance(t);
-                    _packetDict.Add(new Tuple<bool, int>(true, pak.packetID), pak);
+                    _packetDict.Add(new Tuple<bool, int>(true, pak.packetType), pak);
                     Console.WriteLine(pak);
                 }
             }
@@ -60,7 +60,7 @@ namespace networker
                     log("Packet master tried to format a packet with incorrect client-server relation. Packet: " + _pak);
                     throw new IncorrectTransmissionSideException(); 
                 }
-                if (_pak.packetID == -1)
+                if (_pak.packetType == -1)
                 {
                     log("Packet master tried to format a packet without an ID. Packet: " + _pak);
                     throw new InvalidPacketIDException();
@@ -76,7 +76,7 @@ namespace networker
                     byte[] toTrsmt = new byte[msglength]; // msglength(4)||id(4)||{data}
                     Buffer.BlockCopy(_msglength, 0, toTrsmt, 0, 4);
                     Buffer.BlockCopy(Encoding.UTF8.GetBytes("||"), 0, toTrsmt, 4, 2);
-                    Buffer.BlockCopy(BitConverter.GetBytes(_pak.packetID), 0, toTrsmt, 6, 4);
+                    Buffer.BlockCopy(BitConverter.GetBytes(_pak.packetType), 0, toTrsmt, 6, 4);
                     Buffer.BlockCopy(Encoding.UTF8.GetBytes("||"), 0, toTrsmt, 10, 2);
                     Buffer.BlockCopy(Encoding.UTF8.GetBytes(__), 0, toTrsmt, 12, msglength - 12);
                     log($"\nRe-encoded: {Encoding.UTF8.GetString(toTrsmt)}");
