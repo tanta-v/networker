@@ -64,7 +64,7 @@ namespace networker
                 if (__ != null)
                 {
                     int msglength = __.Length + 8; // data length + 2 + 4 + 2  (packet length will have already been processed)
-                    Console.WriteLine(msglength);
+                    log(msglength.ToString());
                     byte[] _msglength = BitConverter.GetBytes(msglength);
 
 

@@ -42,7 +42,7 @@ namespace networker
                 __sendPacketQueue = new Queue<IServerPacket>();
                 recieveThread = new Thread(recieveThreadFunc); recieveThread.Start();
                 sendThread = new Thread(sendThreadFunc); sendThread.Start();
-
+                
                 packetRecieved += handlePacket;
             }
             private void handlePacket(IClientPacket _pkt)
@@ -53,22 +53,28 @@ namespace networker
                         hasSentAckPkt = true;
                         addToSendQueue(new ServerClientRegisterAck_1000());
                         break;
+                    case ClientLifeCheckPacket_1001 pkt:
+                        addToSendQueue(new ServerClientLifeAck_1001());
+                        break;
                 }
             }
             private void recieveThreadFunc()
             {
                 while (Server.alive && __socket.Connected)
                 {
+                    
                     byte[] __r1 = new byte[4]; /// length
-
-                    try { __socket.Receive(__r1); }
-                    catch (SocketException exc) { Close(); }
-                    int paclength = BitConverter.ToInt32(__r1);
-                    if (paclength <= 8) { throw new RecieveFailure("Invalid packet length... "); }
-                    log($"Packet length of {paclength} recieved. trying the rest of the packet...");
-                    byte[] unf = new byte[paclength];
-                    if (__socket.Receive(unf) == 0) { log("Client disconnected whilst packet was being read. Too bad!"); Close(); }
-                    packetRecieved?.Invoke((IClientPacket)packetMaster.unformatPacketFromTransmission(unf));
+                    try {
+                        log("start recieving...");
+                        __socket.Receive(__r1);
+                        int paclength = BitConverter.ToInt32(__r1);
+                        if (paclength <= 8) { throw new RecieveFailure("Invalid packet length... " + BitConverter.ToInt32(__r1)); }
+                        log($"Packet length of {paclength} recieved. trying the rest of the packet...");
+                        byte[] unf = new byte[paclength];
+                        if (__socket.Receive(unf) == 0) { throw new RecieveFailure("Client disconnected whilst packet was being read. Too bad!"); }
+                        packetRecieved?.Invoke((IClientPacket)packetMaster.unformatPacketFromTransmission(unf));
+                    }
+                    catch (Exception exc) { Close(); }
                 }
             }
 

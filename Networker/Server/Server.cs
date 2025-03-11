@@ -39,6 +39,15 @@ namespace networker
                     __init();
                 }
             }
+
+            public class ServerClientLifeAck_1001 : IServerPacket
+            {
+                public override int packetType { get { return 1001; } }
+                public ServerClientLifeAck_1001()
+                {
+                    __init();
+                }
+            }
         }
         public class Server
         {
