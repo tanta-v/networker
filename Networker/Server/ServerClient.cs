@@ -47,6 +47,7 @@ namespace networker
             }
             private void handlePacket(IClientPacket _pkt)
             {
+                log(_pkt.packetType);
                 switch (_pkt)
                 {
                     case ClientRegisterPacket_1000 pkt:
@@ -68,13 +69,12 @@ namespace networker
                         log("start recieving...");
                         __socket.Receive(__r1);
                         int paclength = BitConverter.ToInt32(__r1);
-                        if (paclength <= 8) { throw new RecieveFailure("Invalid packet length... " + BitConverter.ToInt32(__r1)); }
                         log($"Packet length of {paclength} recieved. trying the rest of the packet...");
                         byte[] unf = new byte[paclength];
                         if (__socket.Receive(unf) == 0) { throw new RecieveFailure("Client disconnected whilst packet was being read. Too bad!"); }
                         packetRecieved?.Invoke((IClientPacket)packetMaster.unformatPacketFromTransmission(unf));
                     }
-                    catch (Exception exc) { Close(); }
+                    catch (Exception exc) { log(exc.ToString()); }
                 }
             }
 
@@ -90,7 +90,7 @@ namespace networker
                     }
                 }
             }
-            public void addToSendQueue(IServerPacket toQ) => __sendPacketQueue.Append(toQ);
+            public void addToSendQueue(IServerPacket toQ) => __sendPacketQueue.Enqueue(toQ);
             public delegate void packetRecievedDel(IClientPacket recievedPacket);
             public event packetRecievedDel packetRecieved;
         }

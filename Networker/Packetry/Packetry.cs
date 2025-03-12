@@ -142,13 +142,13 @@
             /// The ID of the packet's type. Used to regulate deserialization.
             /// </summary>
             /// <value> The packet's type. Default is -1, to detect incorrectly formatted packets. Set this. </value>
-            public int packetType { get { return -1; } }
+            public int packetType { get; set; }
 
             /// <summary>
             /// The unique ID of the packet. Used for primarily logging purposes.
             /// </summary>
             /// <value> The packet's unique logging ID. </value>
-            public int packetID { get { return -1; } }
+            public int packetID { get; set; }
 
             /// <summary>
             /// The UTC time that the packet was sent, defined as a long.
@@ -159,7 +159,7 @@
             /// <summary>
             /// Boolean flag indicating whether the packet was sent by the client or the server. Used for deserialisation.
             /// </summary>
-            public bool isClient { get; }
+            public bool isClient { get; set; }
         }
     }
 }

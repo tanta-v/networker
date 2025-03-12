@@ -11,12 +11,11 @@ namespace networker
     {
         public class IServerPacket : IPacket // a packet which the server sends
         {
-            public virtual long timeRecieved { get; set; } // the UTC time that the packet was recieved, defined as a 'long'. keeps track of ping. Server sided.
-            public virtual int packetType { get { return -1; } }
-            public virtual int packetID { get; private set; }
+            public virtual long timeRecieved { get; set; }
+            public virtual int packetType { get; set; }
+            public virtual int packetID { get; set; }
             public virtual long timeSent { get; set; }
-            public virtual int type { get { return -1; } }
-            public bool isClient { get { return false; } }
+            public virtual bool isClient { get; set; }
             public override string ToString()
             {
                 return JsonConvert.SerializeObject(this, Formatting.Indented);
@@ -27,24 +26,25 @@ namespace networker
                 timeRecieved = 0;
                 packetID = PacketMaster.cPKTID;
                 PacketMaster.cPKTID++;
+                isClient = false;
             }
         }
         namespace Packets
         {
             public class ServerClientRegisterAck_1000 : IServerPacket 
             {
-                public override int packetType { get { return 1000; } }
                 public ServerClientRegisterAck_1000()
                 {
+                    packetType = 1000;
                     __init();
                 }
             }
 
             public class ServerClientLifeAck_1001 : IServerPacket
             {
-                public override int packetType { get { return 1001; } }
                 public ServerClientLifeAck_1001()
                 {
+                    packetType = 1001;
                     __init();
                 }
             }

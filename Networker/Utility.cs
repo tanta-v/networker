@@ -8,6 +8,7 @@
         {
             Console.WriteLine($"{timeNowAsString}: {text}");
         }
+        public static void log(int text) => log(text.ToString());
     }
     
     

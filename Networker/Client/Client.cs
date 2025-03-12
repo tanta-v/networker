@@ -20,11 +20,10 @@ namespace networker
         public class IClientPacket : IPacket // a packet which the client sends
         {
             public virtual long timeRecieved { get;  set; }
-            public virtual int packetType { get { return -1; } }
-            public virtual int packetID { get; private set; }
+            public virtual int packetType { get; set; }
+            public virtual int packetID { get; set; }
             public virtual long timeSent { get; set; }
-            public virtual int type { get { return -1; } }
-            public bool isClient { get { return true; } }
+            public virtual bool isClient { get; set; }
             public override string ToString()
             {
                 return JsonConvert.SerializeObject(this, Formatting.Indented);
@@ -35,23 +34,24 @@ namespace networker
                 timeRecieved = 0;
                 packetID = PacketMaster.cPKTID;
                 PacketMaster.cPKTID++;
+                isClient = true;
             }
         }
         namespace Packets
         {
             public class ClientRegisterPacket_1000 : IClientPacket
             {
-                public override int packetType { get { return 1000; } }
                 public ClientRegisterPacket_1000()
                 {
+                    packetType = 1000;
                     __init(); // required for packetID
                 }
             }
             public class ClientLifeCheckPacket_1001 : IClientPacket
             {
-                public override int packetType { get { return 1001; } }
                 public ClientLifeCheckPacket_1001()
                 {
+                    packetType = 1001;
                     __init(); // required for packetID
                 }
             }
@@ -91,7 +91,7 @@ namespace networker
                 }
                 __init();
             }
-            public void addToSendQueue(IClientPacket toQ) => __sendPacketQueue.Append(toQ);
+            public void addToSendQueue(IClientPacket toQ) => __sendPacketQueue.Enqueue(toQ);
             private void __init()
             {
                 lifeCheckTimer = new System.Timers.Timer(5000);
@@ -147,10 +147,9 @@ namespace networker
             }
             private void sendThread()
             {
-                log(alive.ToString());
                 while (alive && __socket.Connected)
                 {
-                    if (__sendPacketQueue.Count != 0)
+                    if (__sendPacketQueue.Count > 0)
                     {
                         log("sending");
                         IClientPacket toSend = __sendPacketQueue.Dequeue();
@@ -165,14 +164,17 @@ namespace networker
                 {
                     byte[] __r1 = new byte[4]; /// length
 
-                    try { __socket.Receive(__r1); }
-                    catch (SocketException exc) { close(); }
-                    int paclength = BitConverter.ToInt32(__r1);
-                    if (paclength <= 8) { throw new RecieveFailure("Invalid packet length... "); }
-                    log($"Packet length of {paclength} recieved. trying the rest of the packet...");
-                    byte[] unf = new byte[paclength];
-                    if (__socket.Receive(unf) == 0) { log("Client disconnected whilst packet was being read. Too bad!"); close(); }
-                    packetRecieved?.Invoke((IServerPacket)packetMaster.unformatPacketFromTransmission(unf));
+                    try
+                    {
+                        log("start recieving...");
+                        __socket.Receive(__r1);
+                        int paclength = BitConverter.ToInt32(__r1);
+                        log($"Packet length of {paclength} recieved. trying the rest of the packet...");
+                        byte[] unf = new byte[paclength];
+                        if (__socket.Receive(unf) == 0) { throw new RecieveFailure("Client disconnected whilst packet was being read. Too bad!"); }
+                        packetRecieved?.Invoke((IServerPacket)packetMaster.unformatPacketFromTransmission(unf));
+                    }
+                    catch (Exception exc) { log(exc.ToString()); }
                 }
             }
         }
