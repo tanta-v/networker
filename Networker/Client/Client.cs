@@ -60,19 +60,18 @@ namespace networker
         {
             public static bool alive;
             public int ping { get {
-                    int total = 0, i = 0;
-                    foreach (Tuple<int, long> a in _pingLst.ToList<Tuple<int,long>>())
+                    long total = 0, i = 0;
+                    foreach (long a in _pingList.ToList())
                     {
                         i++;
-                        total += a.Item1;
+                        total += a;
                     }
-                    return total / i;
+                    return (int)(total / i);
                 } }
-            private Queue<Tuple<int,long>> _pingLst; 
+            private Queue<long> _pingList; 
             private static PacketMaster packetMaster;
             private System.Timers.Timer lifeCheckTimer;
             private System.Timers.Timer dQTimer;
-            private bool waitingForResponse = false;
             private Queue<IClientPacket> __sendPacketQueue;
             private Socket __socket;
             private Thread __recieveThread;
@@ -94,17 +93,19 @@ namespace networker
             public void addToSendQueue(IClientPacket toQ) => __sendPacketQueue.Enqueue(toQ);
             private void __init()
             {
-                lifeCheckTimer = new System.Timers.Timer(5000);
+                lifeCheckTimer = new System.Timers.Timer(750);
                 lifeCheckTimer.AutoReset = true;
                 lifeCheckTimer.Elapsed += lifeCheck;
+                lifeCheckTimer.Start();
                 dQTimer = new System.Timers.Timer(1000);
                 dQTimer.AutoReset = true;
                 dQTimer.Elapsed += dQ;
+                dQTimer.Start();
                 __sendPacketQueue = new Queue<IClientPacket>();
                 addToSendQueue(new ClientRegisterPacket_1000());
                 packetMaster = new PacketMaster(true);
                 packetRecieved += handlePacket;
-                _pingLst = new Queue<Tuple<int, long>>();
+                _pingList = new Queue<long>();
                 alive = true;
                 __recieveThread = new Thread(recieveThread); __recieveThread.Start();
                 __sendThread = new Thread(sendThread); __sendThread.Start();
@@ -115,33 +116,31 @@ namespace networker
             }
             private void dQ(object? source, ElapsedEventArgs e)
             {
-                if (_pingLst.Count > 0)
+                if (_pingList.Count > 0)
                 {
-                    Tuple<int, long> t;
-                    _pingLst.TryPeek(out t);
-                    if (t.Item2 + 1000 <= UTCTimeAsLong) // if packets time added to queue is greater than a second then remove from q
+                    long t;
+                    _pingList.TryPeek(out t);
+                    if (t + 1000 <= UTCTimeAsLong) // if packets time added to queue is greater than a second then remove from q
                     {
-                        _pingLst.Dequeue();
+                        _pingList.Dequeue();
                         dQ(null, e); //recursive
                     }
                 }
             }
-            private void lifeCheck(object? source, ElapsedEventArgs e)
-            {
-                waitingForResponse = true;
-                addToSendQueue(new ClientLifeCheckPacket_1001());
-            }
+            private void lifeCheck(object? source, ElapsedEventArgs e) => addToSendQueue(new ClientLifeCheckPacket_1001());
             public delegate void packetRecievedDel(IServerPacket pac);
             public event packetRecievedDel packetRecieved;
             private void handlePacket(IServerPacket pac)
             {
+                pac.timeRecieved = UTCTimeAsLong;
+                log("Packet recieved. Packet: " + pac.GetType().ToString());
+                _pingList.Enqueue(pac.timeRecieved - pac.timeSent);
                 switch (pac)
                 {
                     case ServerClientRegisterAck_1000 pak:
                         
                         break;
                     case ServerClientLifeAck_1001 pak:
-                        log("recieved serverclientlifeack");
                         break;
                 }
             }
@@ -154,7 +153,6 @@ namespace networker
                         log("sending");
                         IClientPacket toSend = __sendPacketQueue.Dequeue();
                         __socket.Send(packetMaster.formatPacketForTransmission(toSend));
-                        log(toSend.ToString());
                     }
                 }
             }
@@ -169,7 +167,6 @@ namespace networker
                         log("start recieving...");
                         __socket.Receive(__r1);
                         int paclength = BitConverter.ToInt32(__r1);
-                        log($"Packet length of {paclength} recieved. trying the rest of the packet...");
                         byte[] unf = new byte[paclength];
                         if (__socket.Receive(unf) == 0) { throw new RecieveFailure("Client disconnected whilst packet was being read. Too bad!"); }
                         packetRecieved?.Invoke((IServerPacket)packetMaster.unformatPacketFromTransmission(unf));

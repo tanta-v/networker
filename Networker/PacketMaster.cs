@@ -35,7 +35,6 @@ namespace networker
             // Initializes the packet dictionary and registers packet types for client and server
             private void init()
             {
-                cPKTID = 0;  // Reset the packet ID counter
                 var asm = Assembly.GetExecutingAssembly();  // Get the current executing assembly
                 var types = asm.GetTypes();  // Get all types in the assembly
                 var serverPackets = types
@@ -61,6 +60,7 @@ namespace networker
                     _packetDict.TryGetValue(f, out a);
                     log($@"{f.Item1}, {f.Item2}, {a.GetType()}");
                 }
+                cPKTID = 0;  // Reset the packet ID counter, so the .createinstances don't add to it.
             }
 
             // Formats a packet for transmission (serializes it and adds header information)

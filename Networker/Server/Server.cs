@@ -76,6 +76,12 @@ namespace networker
                 log($"Server opened on port {_port}...");
                 _listeningForConnectionThread = new Thread(__listenForConnections); _listeningForConnectionThread.Start();
             }
+            public void sendToClient(ServerClient scInst, IServerPacket toSend) => scInst.addToSendQueue(toSend);
+            public void sendToClient(int clientID, IServerPacket toSend) => sendToClient(getClient(clientID), toSend);
+            public void sendToClient(IPAddress iP, IServerPacket toSend) => sendToClient(getClient(iP), toSend);
+
+            public ServerClient getClient(int clientID) => (ServerClient)ClientList.Where(t => t.ClientID == clientID);
+            public ServerClient getClient(IPAddress iP) => (ServerClient)ClientList.Where(t => t.clientEndPoint.Address == iP);
             private void __listenForConnections()
             {
                 while (alive)

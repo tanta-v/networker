@@ -6,6 +6,7 @@ using System.Net;
 using static networker.Utility;
 using networker._Client.Packets;
 using networker._Server.Packets;
+using System.Timers;
 
 namespace networker
 {
@@ -27,6 +28,21 @@ namespace networker
             private bool hasRecievedAckPkt = false;
             private bool hasSentAckPkt = false;
 
+            private System.Timers.Timer dQTimer;
+            private Queue<long> _pingList;
+            public int ping
+            {
+                get
+                {
+                    long total = 0, i = 0;
+                    foreach (long a in _pingList.ToList())
+                    {
+                        i++;
+                        total += a;
+                    }
+                    return (int)(total / i);
+                }
+            }
             public void Close()
             {
                 log($"Client at {clientEndPoint.Address}:{clientEndPoint.Port} closing...");
@@ -44,9 +60,16 @@ namespace networker
                 sendThread = new Thread(sendThreadFunc); sendThread.Start();
                 
                 packetRecieved += handlePacket;
+
+                dQTimer = new System.Timers.Timer(1000);
+                dQTimer.AutoReset = true;
+                dQTimer.Elapsed += dQ;
+                dQTimer.Start();
+                _pingList = new Queue<long>();
             }
             private void handlePacket(IClientPacket _pkt)
             {
+                _pingList.Enqueue(_pkt.timeRecieved - _pkt.timeSent);
                 log(_pkt.packetType);
                 switch (_pkt)
                 {
@@ -87,6 +110,19 @@ namespace networker
                         IServerPacket toSend = __sendPacketQueue.Dequeue();
                         __socket.Send(packetMaster.formatPacketForTransmission(toSend));
                         log(toSend.ToString());
+                    }
+                }
+            }
+            private void dQ(object? source, ElapsedEventArgs e)
+            {
+                if (_pingList.Count > 0)
+                {
+                    long t;
+                    _pingList.TryPeek(out t);
+                    if (t + 1000 <= UTCTimeAsLong) // if packets time added to queue is greater than a second then remove from q
+                    {
+                        _pingList.Dequeue();
+                        dQ(null, e); //recursive
                     }
                 }
             }
